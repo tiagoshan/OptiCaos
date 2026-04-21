@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Optimizador de Caos 🚚</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #0d1117;
+  --surface: #161b22;
+  --card:    #1c2128;
+  --border:  #30363d;
+  --text:    #e6edf3;
+  --muted:   #7d8590;
+  --accent:  #58a6ff;
+  --green:   #3fb950;
+  --orange:  #d29922;
+  --red:     #f85149;
+  --purple:  #bc8cff;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── header ─────────────────────────────────────────────────────────────── */
+#hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#hdr-title {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+#hdr-title span { color: var(--accent); }
+#hdr-right { display: flex; gap: 14px; align-items: center; font-size: 0.75rem; color: var(--muted); }
+
+.badge {
+  padding: 2px 9px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.badge-on  { background: rgba(63,185,80,.15); color: var(--green); }
+.badge-off { background: rgba(248,81,73,.15); color: var(--red); }
+
+/* ── kpi bar ─────────────────────────────────────────────────────────────── */
+#kpi-bar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.kpi {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 10px;
+  text-align: center;
+  transition: border-color .2s;
+}
+.kpi:hover { border-color: var(--accent); }
+.kpi-val   { font-size: 1.15rem; font-weight: 700; color: var(--accent); }
+.kpi-label { font-size: 0.65rem; color: var(--muted); margin-top: 1px; }
+
+/* ── main layout ─────────────────────────────────────────────────────────── */
+#main-section {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── sidebar ─────────────────────────────────────────────────────────────── */
+#sidebar {
+  width: 228px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+}
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.panel h3 {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 8px;
+}
+
+.btn {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+  transition: all .15s;
+  text-align: left;
+}
+.btn:hover { background: #21262d; }
+.btn-play  { background: rgba(63,185,80,.1); border-color: var(--green); color: var(--green); }
+.btn-play:hover  { background: rgba(63,185,80,.2); }
+.btn-play.paused { background: rgba(248,81,73,.1); border-color: var(--red); color: var(--red); }
+.btn-danger { background: rgba(248,81,73,.08); border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(248,81,73,.18); }
+.btn-reset  { background: rgba(88,166,255,.08); border-color: var(--accent); color: var(--accent); margin-top: 4px; }
+.btn-reset:hover { background: rgba(88,166,255,.18); }
+
+.sl-row { margin-top: 7px; }
+.sl-row label { display: flex; justify-content: space-between; color: var(--muted); font-size: .72rem; margin-bottom: 2px; }
+.sl-row label span { color: var(--text); font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+#event-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#event-log { flex: 1; overflow-y: auto; font-size: .68rem; line-height: 1.5; }
+#event-log::-webkit-scrollbar { width: 3px; }
+#event-log::-webkit-scrollbar-thumb { background: var(--border); }
+
+.ev { padding: 3px 0; border-bottom: 1px solid #21262d; }
+.ev-t { color: var(--muted); }
+.ev-info { color: var(--text); }
+.ev-warning { color: var(--orange); }
+.ev-critical { color: var(--red); font-weight: 700; }
+
+/* ── canvas ──────────────────────────────────────────────────────────────── */
+#canvas-wrap {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+#city-canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+/* ── charts section ──────────────────────────────────────────────────────── */
+#charts-section {
+  display: flex;
+  gap: 8px;
+  padding: 0 8px 8px;
+  flex-shrink: 0;
+  height: 195px;
+}
+.chart-panel {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.chart-panel h4 { font-size: .7rem; color: var(--muted); flex-shrink: 0; }
+.chart-formula  { font-size: .62rem; color: var(--purple); font-style: italic; margin: 1px 0 4px; flex-shrink: 0; }
+.chart-panel canvas { flex: 1; min-height: 0; }
+
+/* ── markov table ────────────────────────────────────────────────────────── */
+#markov-wrap { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.mk { border-collapse: collapse; font-size: .62rem; width: 100%; }
+.mk th, .mk td { border: 1px solid var(--border); text-align: center; padding: 2px 4px; }
+.mk th { color: var(--muted); font-weight: 600; font-size: .6rem; }
+.mk td { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ── header ──────────────────────────────────────────────────────────────── -->
+<header id="hdr">
+  <div id="hdr-title">🚚 <span>Optimizador de Caos</span> — Logística Urbana Estocástica</div>
+  <div id="hdr-right">
+    <span id="conn-badge" class="badge badge-off">● DESCONECTADO</span>
+    <span id="hdr-time">T: 0u</span>
+    <span id="hdr-step">Paso: 0</span>
+  </div>
+</header>
+
+<!-- ── kpi bar ─────────────────────────────────────────────────────────────── -->
+<div id="kpi-bar">
+  <div class="kpi"><div class="kpi-val" id="kv-delivered">0</div><div class="kpi-label">📦 Entregados</div></div>
+  <div class="kpi"><div class="kpi-val" id="kv-ontime">0%</div><div class="kpi-label">✅ A tiempo</div></div>
+  <div class="kpi"><div class="kpi-val" id="kv-avgtime">0u</div><div class="kpi-label">⏱ Tiempo medio</div></div>
+  <div class="kpi"><div class="kpi-val" id="kv-accidents">0</div><div class="kpi-label">🚧 Accidentes</div></div>
+  <div class="kpi"><div class="kpi-val" id="kv-backlog">0</div><div class="kpi-label">📬 En espera</div></div>
+  <div class="kpi"><div class="kpi-val" id="kv-recalcs">0</div><div class="kpi-label">🔄 Recalcs ACO</div></div>
+</div>
+
+<!-- ── main ────────────────────────────────────────────────────────────────── -->
+<div id="main-section">
+
+  <aside id="sidebar">
+    <!-- controls -->
+    <div class="panel">
+      <h3>Controles</h3>
+      <button class="btn btn-play" id="btn-toggle">▶ Iniciar</button>
+      <button class="btn" id="btn-step">⏭ +1 Paso</button>
+      <button class="btn btn-danger" id="btn-accident">💥 Forzar Accidente</button>
+    </div>
+
+    <!-- params -->
+    <div class="panel">
+      <h3>Parámetros</h3>
+      <div class="sl-row">
+        <label>Ciudad N×N <span id="v-grid">7</span></label>
+        <input type="range" id="sl-grid" min="5" max="10" value="7">
+      </div>
+      <div class="sl-row">
+        <label>Repartidores <span id="v-deliv">4</span></label>
+        <input type="range" id="sl-deliv" min="2" max="8" value="4">
+      </div>
+      <div class="sl-row">
+        <label>λ (Poisson) <span id="v-lambda">0.50</span></label>
+        <input type="range" id="sl-lambda" min="0.1" max="1.5" step="0.05" value="0.5">
+      </div>
+      <div class="sl-row">
+        <label>Velocidad (s/paso) <span id="v-speed">0.40</span></label>
+        <input type="range" id="sl-speed" min="0.1" max="2.0" step="0.1" value="0.4">
+      </div>
+      <div class="sl-row">
+        <label>Semilla <span id="v-seed">42</span></label>
+        <input type="range" id="sl-seed" min="0" max="999" value="42">
+      </div>
+      <button class="btn btn-reset" id="btn-reset">🔄 Reiniciar simulación</button>
+    </div>
+
+    <!-- event log -->
+    <div class="panel" id="event-panel">
+      <h3>Eventos</h3>
+      <div id="event-log"></div>
+    </div>
+  </aside>
+
+  <div id="canvas-wrap">
+    <canvas id="city-canvas"></canvas>
+  </div>
+
+</div>
+
+<!-- ── charts ──────────────────────────────────────────────────────────────── -->
+<div id="charts-section">
+  <div class="chart-panel">
+    <h4>Distribución de Poisson</h4>
+    <div class="chart-formula">P(k ; λ) = λᵏ · e⁻λ / k!</div>
+    <canvas id="c-poisson"></canvas>
+  </div>
+  <div class="chart-panel">
+    <h4>Tiempos de Entrega</h4>
+    <div class="chart-formula">histograma empírico</div>
+    <canvas id="c-delivery"></canvas>
+  </div>
+  <div class="chart-panel">
+    <h4>Cadena de Markov — Π</h4>
+    <div class="chart-formula">P(Sₜ₊₁ = j | Sₜ = i) = πᵢⱼ</div>
+    <div id="markov-wrap"></div>
+  </div>
+  <div class="chart-panel">
+    <h4>Convergencia ACO</h4>
+    <div class="chart-formula">τᵢⱼ ← (1−ρ)τᵢⱼ + Σ Q/Lₖ</div>
+    <canvas id="c-aco"></canvas>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── constants ─────────────────────────────────────────────────────────────────
+const TC = ["#3fb950","#d29922","#f85149","#bc8cff"];  // traffic colors
+const TL = ["Libre","Mod.","Cong.","Bloq."];            // traffic labels
+
+const MARKOV = [
+  [0.70, 0.20, 0.08, 0.02],
+  [0.30, 0.50, 0.15, 0.05],
+  [0.10, 0.30, 0.50, 0.10],
+  [0.20, 0.30, 0.30, 0.20],
+];
+
+// ── canvas setup ──────────────────────────────────────────────────────────────
+const canvas = document.getElementById('city-canvas');
+const ctx    = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const r = canvas.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
+  canvas.width  = r.width  * devicePixelRatio;
+  canvas.height = r.height * devicePixelRatio;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  if (_state) render(_state);
+}
+new ResizeObserver(resizeCanvas).observe(canvas);
+window.addEventListener('resize', resizeCanvas);
+
+// ── coordinate transform (grid → canvas CSS-px, centered, y-flipped) ─────────
+function tc(gx, gy, W, H, gs) {
+  const PAD  = 26;
+  const S    = Math.min(W, H) - 2 * PAD;
+  const cell = S / (gs - 1);
+  return {
+    x: (W - S) / 2 + gx * cell,
+    y: (H - S) / 2 + (gs - 1 - gy) * cell,
+  };
+}
+
+// ── shape helpers ─────────────────────────────────────────────────────────────
+function star(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = i * Math.PI / 5 - Math.PI / 2;
+    const d = i % 2 === 0 ? r : r * 0.42;
+    i === 0 ? ctx.moveTo(x + d*Math.cos(a), y + d*Math.sin(a))
+            : ctx.lineTo(x + d*Math.cos(a), y + d*Math.sin(a));
+  }
+  ctx.closePath();
+}
+
+function diamond(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.moveTo(x,   y-r);
+  ctx.lineTo(x+r, y);
+  ctx.lineTo(x,   y+r);
+  ctx.lineTo(x-r, y);
+  ctx.closePath();
+}
+
+function rrect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);  ctx.quadraticCurveTo(x+w, y,   x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);   ctx.quadraticCurveTo(x,   y+h, x,   y+h-r);
+  ctx.lineTo(x, y+r);     ctx.quadraticCurveTo(x,   y,   x+r, y);
+  ctx.closePath();
+}
+
+// ── main render ───────────────────────────────────────────────────────────────
+function render(s) {
+  const W  = canvas.getBoundingClientRect().width;
+  const H  = canvas.getBoundingClientRect().height;
+  if (W === 0 || H === 0) return;
+  const gs = s.grid_size;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  // 1 — pheromone glow
+  ctx.lineCap = 'round';
+  for (const [ux,uy,vx,vy,intens] of s.pheromones) {
+    if (intens < 0.05) continue;
+    const p1 = tc(ux,uy,W,H,gs), p2 = tc(vx,vy,W,H,gs);
+    ctx.strokeStyle = `rgba(255,215,0,${(intens * 0.45).toFixed(2)})`;
+    ctx.lineWidth   = 3 + 6 * intens;
+    ctx.shadowColor = 'rgba(255,215,0,0.5)';
+    ctx.shadowBlur  = 10 * intens;
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+
+  // 2 — edges by traffic state
+  for (const [ux,uy,vx,vy,st] of s.edges) {
+    const p1 = tc(ux,uy,W,H,gs), p2 = tc(vx,vy,W,H,gs);
+    ctx.strokeStyle = TC[st];
+    ctx.lineWidth   = 2.5;
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+  }
+
+  // 3 — nodes
+  for (const [nx,ny] of s.nodes) {
+    const p = tc(nx,ny,W,H,gs);
+    ctx.fillStyle   = '#30363d';
+    ctx.strokeStyle = '#484f58';
+    ctx.lineWidth   = 1;
+    ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  }
+
+  // 4 — order connections + markers
+  ctx.setLineDash([3,5]);
+  ctx.lineWidth   = 1;
+  ctx.strokeStyle = 'rgba(88,166,255,0.18)';
+  for (const o of s.orders) {
+    const po = tc(o.origin[0],o.origin[1],W,H,gs);
+    const pd = tc(o.dest[0],  o.dest[1],  W,H,gs);
+    ctx.beginPath(); ctx.moveTo(po.x,po.y); ctx.lineTo(pd.x,pd.y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  for (const o of s.orders) {
+    const po = tc(o.origin[0],o.origin[1],W,H,gs);
+    const pd = tc(o.dest[0],  o.dest[1],  W,H,gs);
+    star(ctx, po.x, po.y, 8);
+    ctx.fillStyle = '#58a6ff'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+    diamond(ctx, pd.x, pd.y, 7);
+    ctx.fillStyle = '#fd8c73'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  // 5 — deliverer routes (dashed)
+  ctx.setLineDash([5,4]);
+  ctx.lineWidth = 1.5;
+  for (const d of s.deliverers) {
+    if (d.route.length < 2) continue;
+    ctx.strokeStyle = d.color + '55';
+    ctx.beginPath();
+    let first = true;
+    for (const [rx,ry] of d.route) {
+      const p = tc(rx,ry,W,H,gs);
+      first ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y);
+      first = false;
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 6 — deliverer avatars
+  for (const d of s.deliverers) {
+    const p = tc(d.pos[0],d.pos[1],W,H,gs);
+    ctx.shadowColor = d.color;
+    ctx.shadowBlur  = 16;
+    ctx.fillStyle   = d.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,13,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur  = 0;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle    = '#fff';
+    ctx.font         = 'bold 9px system-ui';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`R${d.id}`, p.x, p.y);
+    if (d.orders > 0) {
+      ctx.fillStyle = '#f85149';
+      ctx.beginPath(); ctx.arc(p.x+10,p.y-10,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 7px system-ui';
+      ctx.fillText(d.orders, p.x+10, p.y-10);
+    }
+  }
+
+  // 7 — legend
+  renderLegend(ctx, W, H);
+}
+
+function renderLegend(ctx, W, H) {
+  const x = W - 118, y0 = 14, lh = 18;
+  ctx.fillStyle = 'rgba(13,17,23,0.85)';
+  rrect(ctx, x-8, y0-6, 114, lh*4+14, 5); ctx.fill();
+  ctx.font = '11px system-ui'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = TC[i];
+    ctx.fillRect(x, y0 + i*lh + 2, 10, 10);
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText(TL[i], x+14, y0 + i*lh + 7);
+  }
+  const y1 = y0 + lh*4 + 16;
+  ctx.fillStyle = 'rgba(13,17,23,0.85)';
+  rrect(ctx, x-8, y1-6, 114, 52, 5); ctx.fill();
+  star(ctx, x+6, y1+8, 6);  ctx.fillStyle='#58a6ff'; ctx.fill();
+  ctx.fillStyle='#e6edf3'; ctx.fillText('Origen pedido',  x+16, y1+8);
+  diamond(ctx, x+6, y1+26, 6); ctx.fillStyle='#fd8c73'; ctx.fill();
+  ctx.fillStyle='#e6edf3'; ctx.fillText('Destino pedido', x+16, y1+26);
+}
+
+// ── Chart.js instances ────────────────────────────────────────────────────────
+const baseScales = {
+  x: { ticks:{ color:'#7d8590',font:{size:8} }, grid:{ color:'#21262d' } },
+  y: { ticks:{ color:'#7d8590',font:{size:8} }, grid:{ color:'#21262d' } },
+};
+const baseLegend = { labels:{ color:'#7d8590',font:{size:9},boxWidth:10 } };
+
+const cPoisson = new Chart(document.getElementById('c-poisson'), {
+  type: 'bar',
+  data: {
+    labels: ['0','1','2','3','4','5','6','7'],
+    datasets: [
+      { label:'Teórico',   data:[], backgroundColor:'rgba(88,166,255,.7)' },
+      { label:'Observado', data:[], backgroundColor:'rgba(248,81,73,.7)' },
+    ],
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false, animation:{duration:200},
+    plugins:{ legend:baseLegend },
+    scales:{
+      x:{ ...baseScales.x, title:{display:true,text:'k pedidos',color:'#7d8590',font:{size:8}} },
+      y:{ ...baseScales.y, title:{display:true,text:'P(k)',      color:'#7d8590',font:{size:8}} },
+    },
+  },
+});
+
+const cDelivery = new Chart(document.getElementById('c-delivery'), {
+  type: 'bar',
+  data: { labels:[], datasets:[{ label:'Entregas', data:[], backgroundColor:'rgba(63,185,80,.75)' }] },
+  options: {
+    responsive:true, maintainAspectRatio:false, animation:{duration:200},
+    plugins:{ legend:{ display:false } },
+    scales:{
+      x:{ ...baseScales.x, title:{display:true,text:'Tiempo (u)',color:'#7d8590',font:{size:8}} },
+      y:{ ...baseScales.y, title:{display:true,text:'N',          color:'#7d8590',font:{size:8}} },
+    },
+  },
+});
+
+const cAco = new Chart(document.getElementById('c-aco'), {
+  type: 'line',
+  data: { labels:[], datasets:[{
+    label:'Costo', data:[],
+    borderColor:'#d29922', backgroundColor:'rgba(210,153,34,.12)',
+    fill:true, tension:.35, pointRadius:0, borderWidth:2,
+  }]},
+  options: {
+    responsive:true, maintainAspectRatio:false, animation:{duration:200},
+    plugins:{ legend:{ display:false } },
+    scales:{
+      x:{ display:false },
+      y:{ ...baseScales.y, title:{display:true,text:'Costo',color:'#7d8590',font:{size:8}} },
+    },
+  },
+});
+
+// ── Markov matrix (static — render once) ─────────────────────────────────────
+(function initMarkov() {
+  const wrap = document.getElementById('markov-wrap');
+  const cols = ['#3fb950','#d29922','#f85149','#bc8cff'];
+  const lbls = ['Libre','Mod.','Cong.','Bloq.'];
+  let h = '<table class="mk"><thead><tr><th></th>';
+  for (const l of lbls) h += `<th>${l}</th>`;
+  h += '</tr></thead><tbody>';
+  for (let i = 0; i < 4; i++) {
+    h += `<tr><th style="color:${cols[i]}">${lbls[i]}</th>`;
+    for (let j = 0; j < 4; j++) {
+      const v  = MARKOV[i][j];
+      const bg = cols[j];
+      const r  = parseInt(bg.slice(1,3),16);
+      const g  = parseInt(bg.slice(3,5),16);
+      const b  = parseInt(bg.slice(5,7),16);
+      const fg = v >= 0.38 ? '#0d1117' : '#e6edf3';
+      h += `<td style="background:rgba(${r},${g},${b},${(v*.9).toFixed(2)});color:${fg}">${v.toFixed(2)}</td>`;
+    }
+    h += '</tr>';
+  }
+  h += '</tbody></table>';
+  wrap.innerHTML = h;
+})();
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+function histogram(vals, bins=10) {
+  if (vals.length < 2) return {labels:[], data:[]};
+  const mn = Math.min(...vals), mx = Math.max(...vals);
+  const w  = (mx-mn)/bins || 1;
+  const cnt = new Array(bins).fill(0);
+  for (const v of vals) cnt[Math.min(Math.floor((v-mn)/w), bins-1)]++;
+  return {
+    labels: Array.from({length:bins}, (_,i) => (mn+i*w).toFixed(1)),
+    data:   cnt,
+  };
+}
+
+// ── UI update ─────────────────────────────────────────────────────────────────
+function updateUI(s) {
+  document.getElementById('hdr-time').textContent = `T: ${s.time.toFixed(0)}u`;
+  document.getElementById('hdr-step').textContent = `Paso: ${s.step}`;
+
+  document.getElementById('kv-delivered').textContent = s.metrics.delivered;
+  document.getElementById('kv-ontime').textContent    = `${s.metrics.on_time}%`;
+  document.getElementById('kv-avgtime').textContent   = `${s.metrics.avg_time}u`;
+  document.getElementById('kv-accidents').textContent = s.metrics.accidents;
+  document.getElementById('kv-backlog').textContent   = s.metrics.backlog;
+  document.getElementById('kv-recalcs').textContent   = s.metrics.recalcs;
+
+  const btn = document.getElementById('btn-toggle');
+  if (s.running) {
+    btn.textContent = '⏸ Pausar';
+    btn.classList.add('paused');
+  } else {
+    btn.textContent = '▶ Iniciar';
+    btn.classList.remove('paused');
+  }
+
+  const ICONS = {info:'📌', warning:'⚠️', critical:'🚨'};
+  document.getElementById('event-log').innerHTML =
+    [...s.events].reverse().map(e =>
+      `<div class="ev"><span class="ev-t">${e.t.toFixed(0)}u</span> ${ICONS[e.sev]||'📌'} <span class="ev-${e.sev}">${e.msg}</span></div>`
+    ).join('');
+
+  cPoisson.data.datasets[0].data = s.poisson.theory;
+  cPoisson.data.datasets[1].data = s.poisson.observed;
+  cPoisson.update('none');
+
+  const hist = histogram(s.delivery_times);
+  cDelivery.data.labels           = hist.labels;
+  cDelivery.data.datasets[0].data = hist.data;
+  cDelivery.update('none');
+
+  cAco.data.labels           = s.convergence.map((_,i) => i);
+  cAco.data.datasets[0].data = s.convergence;
+  cAco.update('none');
+
+  render(s);
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+let _state = null;
+let _ws    = null;
+
+function connect() {
+  const badge = document.getElementById('conn-badge');
+  _ws = new WebSocket(`ws://${location.host}/ws`);
+
+  _ws.onopen = () => {
+    badge.textContent = '● CONECTADO';
+    badge.className   = 'badge badge-on';
+  };
+  _ws.onmessage = e => {
+    _state = JSON.parse(e.data);
+    updateUI(_state);
+  };
+  _ws.onclose = () => {
+    badge.textContent = '● DESCONECTADO';
+    badge.className   = 'badge badge-off';
+    setTimeout(connect, 2000);
+  };
+  _ws.onerror = () => _ws.close();
+}
+
+function send(obj) {
+  if (_ws && _ws.readyState === WebSocket.OPEN) _ws.send(JSON.stringify(obj));
+}
+
+// ── controls ──────────────────────────────────────────────────────────────────
+document.getElementById('btn-toggle').addEventListener('click',   () => send({cmd:'toggle'}));
+document.getElementById('btn-step').addEventListener('click',     () => send({cmd:'step'}));
+document.getElementById('btn-accident').addEventListener('click', () => send({cmd:'accident'}));
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  send({ cmd:'reset', params:{
+    grid_size:    +document.getElementById('sl-grid').value,
+    n_deliverers: +document.getElementById('sl-deliv').value,
+    lambda:       +document.getElementById('sl-lambda').value,
+    seed:         +document.getElementById('sl-seed').value,
+  }});
+});
+
+[
+  ['sl-grid',   'v-grid',   v => v,                   null],
+  ['sl-deliv',  'v-deliv',  v => v,                   null],
+  ['sl-lambda', 'v-lambda', v => (+v).toFixed(2),     null],
+  ['sl-speed',  'v-speed',  v => (+v).toFixed(2),     v => send({cmd:'speed', value:+v})],
+  ['sl-seed',   'v-seed',   v => v,                   null],
+].forEach(([id, vid, fmt, cb]) => {
+  document.getElementById(id).addEventListener('input', function() {
+    document.getElementById(vid).textContent = fmt(this.value);
+    if (cb) cb(this.value);
+  });
+});
+
+// ── init ──────────────────────────────────────────────────────────────────────
+resizeCanvas();
+connect();
+</script>
+</body>
+</html>
